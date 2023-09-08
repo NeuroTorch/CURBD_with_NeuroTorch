@@ -1,3 +1,8 @@
+"""
+This file is used to reproduce the results of the CURBD repository (https://github.com/rajanlab/CURBD)
+using the NeuroTorch library.
+"""
+
 import numpy as np
 import torch
 import neurotorch as nt
@@ -39,7 +44,7 @@ if __name__ == '__main__':
     layer.forward_weights.requires_grad = False
     model = nt.SequentialRNN(layers=[layer]).build()
     print(f"Model:\n{model}")
-    model, history, trainer = train_with_curbd(model, dataset, force_overwrite=False)
+    model, history, trainer = train_with_curbd(model, dataset, force_overwrite=True)
     history.plot(show=True)
 
 

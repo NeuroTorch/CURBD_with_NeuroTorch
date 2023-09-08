@@ -34,12 +34,12 @@ if __name__ == '__main__':
         # recurrent_weights=J,
         activation=torch.nn.Tanh(),
         hh_init="given",
-        h0=(dataset.get_initial_condition().reshape(1, -1),),
+        h0=(dataset.get_initial_condition().reshape(1, -1), ),
     ).build()
     layer.forward_weights.requires_grad = False
     model = nt.SequentialRNN(layers=[layer]).build()
-
-    model, history, trainer = train_with_curbd(model, dataset)
+    print(f"Model:\n{model}")
+    model, history, trainer = train_with_curbd(model, dataset, force_overwrite=False)
     history.plot(show=True)
 
 

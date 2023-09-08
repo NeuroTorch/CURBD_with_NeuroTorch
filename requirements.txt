@@ -1,0 +1,4 @@
+NeuroTorch==0.0.1b4
+numpy==1.21.4
+numpy==1.25.2
+torch==2.0.1

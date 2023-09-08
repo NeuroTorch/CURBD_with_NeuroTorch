@@ -56,8 +56,6 @@ def train_with_curbd(
         metrics=[nt.metrics.RegressionMetrics(model, "p_var")],
     )
     dataloader = torch.utils.data.DataLoader(curbd_dataset, batch_size=1, shuffle=False)
-    for callback in trainer.callbacks:
-        callback.start(trainer)
     os.makedirs(f"{model.checkpoint_folder}/infos", exist_ok=True)
     with open(f"{model.checkpoint_folder}/infos/trainer_repr.txt", "w+") as f:
         f.write(repr(trainer))

@@ -1,19 +1,16 @@
-import os.path
 from copy import deepcopy
-from typing import Callable, Optional, Tuple, Iterable
 
 import numpy as np
-import torch
-import tqdm
-from neurotorch import to_tensor
-from torch.utils.data import DataLoader, Dataset
-from scipy.ndimage import gaussian_filter1d
-import neurotorch as nt
-from pythonbasictools.google_drive import GoogleDriveDownloader
 import numpy.random as npr
+from neurotorch import to_tensor
+from torch.utils.data import Dataset
 
 
 class CURBD3RegionsDataset(Dataset):
+    """
+    Generate a dataset according to CURBD repository https://github.com/rajanlab/CURBD.
+    """
+
     def __init__(
             self,
             n_units: int = 3 * 100,

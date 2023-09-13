@@ -5,6 +5,7 @@ import neurotorch as nt
 from neurotorch.callbacks.convergence import ConvergenceTimeGetter
 
 from curbd_dataset import CURBD3RegionsDataset
+from util import save_str_to_file
 import torch
 
 
@@ -56,9 +57,9 @@ def train_with_curbd(
         metrics=[nt.metrics.RegressionMetrics(model, "p_var")],
     )
     dataloader = torch.utils.data.DataLoader(curbd_dataset, batch_size=1, shuffle=False)
-    os.makedirs(f"{model.checkpoint_folder}/infos", exist_ok=True)
-    with open(f"{model.checkpoint_folder}/infos/trainer_repr.txt", "w+") as f:
-        f.write(repr(trainer))
+    save_str_to_file(f"{model.checkpoint_folder}/infos/model_repr.txt", repr(model))
+    save_str_to_file(f"{model.checkpoint_folder}/infos/dataset_repr.txt", repr(curbd_dataset))
+    save_str_to_file(f"{model.checkpoint_folder}/infos/trainer_repr.txt", repr(trainer))
     history = trainer.train(
         dataloader,
         dataloader,
@@ -67,8 +68,9 @@ def train_with_curbd(
         force_overwrite=kwargs.get("force_overwrite", False),
     )
     history.plot(save_path=f"{model.checkpoint_folder}/figures/tr_history.png", show=False)
-    with open(f"{model.checkpoint_folder}/infos/trainer_repr.txt", "w+") as f:
-        f.write(repr(trainer))
+    save_str_to_file(f"{model.checkpoint_folder}/infos/model_repr.txt", repr(model))
+    save_str_to_file(f"{model.checkpoint_folder}/infos/dataset_repr.txt", repr(curbd_dataset))
+    save_str_to_file(f"{model.checkpoint_folder}/infos/trainer_repr.txt", repr(trainer))
     return model, history, trainer
 
 

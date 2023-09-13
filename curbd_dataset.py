@@ -45,23 +45,38 @@ class CURBD3RegionsDataset(Dataset):
         self.lead_time = lead_time
         self.bump_std = bump_std
         self.amp_in_wn = amp_in_wn
-        self.n_time_steps = int((self.time_seconds + self.lead_time) / self.dt_data) + 1
+
+        # self.n_time_steps = int((self.time_seconds + self.lead_time) / self.dt_data) + 1
         self.kwargs = kwargs
 
         self._is_simulated = False
+        self._noise_is_simulated = False
         self.simulation = None
         self.input_noise_data = None
         self.dtype = kwargs.get("dtype", np.float32)
 
         assert self.n_units % 3 == 0, "Number of units must be divisible by 3"
 
+    @property
+    def main_time_steps(self) -> int:
+        return int(self.time_seconds / self.dt_data) + 1
+
+    @property
+    def lead_time_steps(self) -> int:
+        return int(self.lead_time / self.dt_data)
+
+    @property
+    def n_time_steps(self) -> int:
+        return self.main_time_steps + self.lead_time_steps
+
     def simulate(self):
         self.simulation = self.exec_simulation()
-        self.input_noise_data = self.exec_input_noise()
         self._is_simulated = True
+        self.input_noise_data = self.exec_input_noise()
+        self._noise_is_simulated = True
 
     def exec_simulation(self):
-        time_data = np.arange(0, (self.time_seconds + self.dt_data), self.dt_data)
+        time_data = np.arange(self.main_time_steps) * self.dt_data
 
         # for now it only works if the networks are the same size
         N = int(self.n_units / 3)
@@ -88,7 +103,7 @@ class CURBD3RegionsDataset(Dataset):
         sig = self.bump_std * Nb  # width of bump in N units
 
         norm_by = 2 * sig ** 2
-        cut_off = int(np.ceil(len(time_data) / 2)) - 100
+        cut_off = int(np.ceil(len(time_data) / 2)) - int(0.1 * len(time_data))
         for i in range(Nb):
             stuff = (i - sig - Nb * time_data / (time_data[-1] / 2)) ** 2 / norm_by
             xBump[i, :] = np.exp(-stuff)
@@ -99,20 +114,21 @@ class CURBD3RegionsDataset(Dataset):
         hBump = hBump / np.max(hBump)
 
         # set up fixed points driving network
-
         xFP = np.zeros((Nc, len(time_data)))
-        cut_off = int(np.ceil(len(time_data) / 2)) + 100
+        cut_off = int(np.ceil(len(time_data) / 2)) + int(0.1 * len(time_data))
+        front_t = int(0.01 * len(time_data))
+        back_t = int(0.25 * len(time_data))
         for i in range(Nc):
-            front = xBump[i, 10] * np.ones((1, cut_off))
-            back = xBump[i, 300] * np.ones((1, len(time_data) - cut_off))
+            front = xBump[i, front_t] * np.ones((1, cut_off))
+            back = xBump[i, back_t] * np.ones((1, len(time_data) - cut_off))
             xFP[i, :] = np.concatenate((front, back), axis=1)
         hFP = np.log((xFP + 0.01) / (1 - xFP + 0.01))
         hFP = hFP - np.min(hFP)
         hFP = hFP / np.max(hFP)
 
         # add the lead time
-        extratData = np.arange(time_data[-1] + self.dt_data, self.time_seconds + self.lead_time, self.dt_data)
-        time_data = np.concatenate((time_data, extratData))
+        # extratData = np.arange(time_data[-1] + self.dt_data, self.time_seconds + self.lead_time, self.dt_data)
+        time_data = np.arange(self.n_time_steps) * self.dt_data
 
         newmat = np.tile(hBump[:, 1, np.newaxis], (1, int(np.ceil(self.lead_time / self.dt_data))))
         hBump = np.concatenate((newmat, hBump), axis=1)

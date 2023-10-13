@@ -54,6 +54,7 @@ class CURBD3RegionsDataset(Dataset):
         self.simulation = None
         self.input_noise_data = None
         self.dtype = kwargs.get("dtype", np.float32)
+        self.re_hh = kwargs.get("re_hh", False)
 
         assert self.n_units % 3 == 0, "Number of units must be divisible by 3"
 
@@ -258,8 +259,11 @@ class CURBD3RegionsDataset(Dataset):
         activity = np.concatenate((self.simulation['Ra'], self.simulation['Rb'], self.simulation['Rc']), 0).T
         input_noise = deepcopy(self.input_noise_data).T
         x = to_tensor(input_noise)[1:]  # shape: (time, units)
-        y = to_tensor(activity)[1:]  # shape: (time, units)
-        return deepcopy(x), deepcopy(y)
+        h0, y = to_tensor(activity)[0], to_tensor(activity)[1:]  # shape: (time, units)
+        if self.re_hh:
+            return deepcopy(x), deepcopy(h0), deepcopy(y)
+        else:
+            return deepcopy(x), deepcopy(y)
 
     def get_initial_condition(self):
         return deepcopy(to_tensor(self.get_activity()[0]))  # shape: (units, )

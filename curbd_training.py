@@ -12,7 +12,7 @@ from neurotorch.learning_algorithms.learning_algorithm import LearningAlgorithm
 
 from curbd_dataset import CURBD3RegionsDataset
 from figures_script import complete_report
-from util import save_str_to_file, model_summary
+from util import save_str_to_file, model_summary, RLSHook
 import torch
 
 
@@ -126,9 +126,14 @@ class SaveObjsCallback(nt.callbacks.BaseCallback):
 class MixTrainingLearningAlgorithm(LearningAlgorithm):
     DEFAULT_PRIORITY = nt.callbacks.BaseCallback.DEFAULT_HIGH_PRIORITY
 
-    def __init__(self, learning_algorithms: Optional[Iterable[LearningAlgorithm]] = None):
+    def __init__(
+            self,
+            learning_algorithms: Optional[Iterable[LearningAlgorithm]] = None,
+            n_epochs_per_la: Optional[int] = 10,
+    ):
         super().__init__(save_state=False)
         self._learning_algorithms = learning_algorithms
+        self.n_epochs_per_la = n_epochs_per_la
 
     def filter_learning_algorithms(self, callbacks: Iterable[nt.callbacks.BaseCallback]) -> List[LearningAlgorithm]:
         la_list = [callback for callback in callbacks if isinstance(callback, LearningAlgorithm)]
@@ -146,7 +151,9 @@ class MixTrainingLearningAlgorithm(LearningAlgorithm):
         for la in self._learning_algorithms:
             la.start(trainer, **kwargs)
 
-        trainer.update_state_(n_epochs=max(trainer.state.n_epochs, len(self._learning_algorithms)))
+        trainer.update_state_(
+            n_epochs=max(trainer.state.n_epochs, self.n_epochs_per_la * len(self._learning_algorithms))
+        )
 
         # remove the learning algorithms from the trainer's callbacks
         self.add_learning_algorithms_to_trainer(trainer, **kwargs)
@@ -164,7 +171,9 @@ class MixTrainingLearningAlgorithm(LearningAlgorithm):
     def on_epoch_begin(self, trainer, **kwargs):
         super().on_iteration_begin(trainer, **kwargs)
         self.remove_learning_algorithms_from_trainer(trainer, **kwargs)
-        curr_la = self._learning_algorithms[trainer.state.epoch % len(self._learning_algorithms)]
+        # curr_la = self._learning_algorithms[trainer.state.epoch % len(self._learning_algorithms)]
+        la_idx = (trainer.state.epoch // self.n_epochs_per_la) % len(self._learning_algorithms)
+        curr_la = self._learning_algorithms[la_idx]
         trainer.callbacks.append(curr_la)
         curr_la.on_epoch_begin(trainer, **kwargs)
         p_bar = trainer.state.objects.get("p_bar", None)
@@ -191,7 +200,7 @@ class MixTrainingLearningAlgorithm(LearningAlgorithm):
             return f"learning_algorithms=None"
         learning_algorithms = self.filter_learning_algorithms(self._learning_algorithms)
         la_names = [getattr(la, "name", la.__class__.__name__) for la in learning_algorithms]
-        return f"learning_algorithms={la_names}"
+        return f"learning_algorithms={la_names}, n_epochs_per_la={self.n_epochs_per_la}"
 
 
 def train_with_curbd(
@@ -209,7 +218,7 @@ def train_with_curbd(
     la = kwargs.get("learning_algorithm", None)
     lr = kwargs.get("params_lr", kwargs.get("lr", 1.0))
     if la is None:
-        la = nt.RLS(
+        la = RLSHook(
             params=[layer.get_recurrent_weights_parameter()],
             # params=nt.utils.filter_parameters(list(model.parameters()), requires_grad=True),
             delta=kwargs.get("P0", 1.0),
@@ -263,8 +272,8 @@ def train_with_curbd(
         save_objs,
         *kwargs.get("callbacks", []),
     ]
-    if len([callback for callback in callbacks if isinstance(callback, LearningAlgorithm)]) > 1:
-        callbacks.append(MixTrainingLearningAlgorithm(callbacks))
+    # if len([callback for callback in callbacks if isinstance(callback, LearningAlgorithm)]) > 1:
+    #     callbacks.append(MixTrainingLearningAlgorithm(callbacks))
     if lr_scheduler is not None:
         callbacks.append(lr_scheduler)
     trainer = nt.Trainer(

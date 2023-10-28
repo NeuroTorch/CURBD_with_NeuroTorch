@@ -1,10 +1,14 @@
 import os
 from collections import OrderedDict
+from typing import List, Tuple
 
 import numpy as np
 import torch
 import neurotorch as nt
+from neurotorch import RLS
 from neurotorch.modules import BaseModel
+from neurotorch.utils import unpack_out_hh, recursive_detach_, list_insert_replace_at, ConnectivityConvention
+from torch.utils.hooks import RemovableHandle
 
 
 def save_str_to_file(save_path: str, string: str):
@@ -189,3 +193,90 @@ def model_summary(
     return output_str
 
 
+class TBPTTHook(nt.TBPTT):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.forwards_hooks: List[RemovableHandle] = []
+
+    def decorate_forwards(self):
+        if self.trainer.model.training:
+            if not self._forwards_decorated:
+                self._initialize_original_forwards()
+            self._hidden_layer_names.clear()
+
+            for layer in self.layers:
+                hook = layer.register_forward_hook(self._hidden_hook, with_kwargs=True)
+                self._hidden_layer_names.append(layer.name)
+                self.forwards_hooks.append(hook)
+
+            for layer in self.output_layers:
+                hook = layer.register_forward_hook(self._output_hook, with_kwargs=True)
+                self.forwards_hooks.append(hook)
+            self._forwards_decorated = True
+
+    def undecorate_forwards(self):
+        for hook in self.forwards_hooks:
+            hook.remove()
+        self._forwards_decorated = False
+
+    def _hidden_hook(self, module, args, kwargs, output) -> None:
+        t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
+        if t is None:
+            return
+
+        out_tensor, hh = unpack_out_hh(output)
+        hh = recursive_detach_(hh)
+        return
+
+    def _output_hook(self, module, args, kwargs, output) -> None:
+        t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
+        if t is None:
+            return
+
+        layer_name = module.name
+        out_tensor, hh = unpack_out_hh(output)
+        list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
+        self._optim_counter += 1
+        if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
+            self._backward_at_t(t, self.backward_time_steps, layer_name)
+            output = recursive_detach_(output)
+        if self._optim_counter >= self.optim_time_steps:
+            self._make_optim_step()
+        return
+
+
+class RLSHook(RLS, TBPTTHook):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _output_hook(self, module, args, kwargs, output) -> None:
+        t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
+        if t is None:
+            return
+
+        layer_name = module.name
+        out_tensor, hh = unpack_out_hh(output)
+        list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
+        if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
+            self._backward_at_t(t, self.backward_time_steps, layer_name)
+            if self.strategy in ["grad", "jacobian", "scaled_jacobian"]:
+                output = recursive_detach_(output)
+
+    @staticmethod
+    def curbd_step_method(
+            inv_corr: torch.Tensor,
+            post_activation: torch.Tensor,
+            error: torch.Tensor,
+            connectivity_convention: ConnectivityConvention = ConnectivityConvention.ItoJ,
+            **kwargs
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        delta_weights, delta_inv_corr = RLS.curbd_step_method(
+            inv_corr=inv_corr,
+            post_activation=post_activation,
+            error=error,
+            connectivity_convention=connectivity_convention,
+            **kwargs
+        )
+        delta_weights_sign = torch.sign(delta_weights)
+        delta_weights = delta_weights_sign * torch.sqrt(torch.abs(delta_weights))
+        return delta_weights, delta_inv_corr

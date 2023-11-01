@@ -7,7 +7,7 @@ from neurotorch.callbacks.convergence import ConvergenceTimeGetter
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
 
 from curbd_dataset import CURBD3RegionsDataset
-from util import SaveObjsCallback
+from utils import SaveObjsCallback
 
 
 def train_with_curbd(

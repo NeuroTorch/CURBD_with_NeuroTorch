@@ -9,7 +9,7 @@ import torch
 from curbd_training import train_with_curbd, make_eval_prediction
 from figures_script import complete_report
 from ts_dataset import TSDataset
-from util import model_summary, TBPTTHook
+from utils import model_summary
 
 if __name__ == '__main__':
     number_units = -1
@@ -68,13 +68,14 @@ if __name__ == '__main__':
         lr=1.0,
         **{
             "learning_algorithm":
-                TBPTTHook(
+                nt.TBPTT(
                     params=nt.utils.filter_parameters(list(model.parameters()), requires_grad=True),
                     backward_time_steps=1,
                     optim_time_steps=1,
                     default_optimizer_cls=torch.optim.AdamW,
                     params_lr=1e-2,
                     grad_norm_clip_value=0.5,
+                    use_hooks=True,
                 ) if layer.force_dale_law else None,
             "use_lr_scheduler": layer.force_dale_law,
             "lr_schedule_start": 0.0,

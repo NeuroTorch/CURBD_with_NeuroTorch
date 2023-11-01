@@ -14,7 +14,7 @@ from neurotorch.visualisation.time_series_visualisation import (
 )
 
 from constants import MPL_RC_BIG_FONT_PARAMS, MPL_RC_SMALL_FONT_PARAMS
-from util import pvar_mean_std
+from utils import pvar_mean_std
 
 
 @torch.no_grad()

@@ -191,58 +191,6 @@ def model_summary(
     return output_str
 
 
-class TBPTTHook(nt.TBPTT):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.forwards_hooks: List[RemovableHandle] = []
-
-    def decorate_forwards(self):
-        if self.trainer.model.training:
-            if not self._forwards_decorated:
-                self._initialize_original_forwards()
-            self._hidden_layer_names.clear()
-
-            for layer in self.layers:
-                hook = layer.register_forward_hook(self._hidden_hook, with_kwargs=True)
-                self._hidden_layer_names.append(layer.name)
-                self.forwards_hooks.append(hook)
-
-            for layer in self.output_layers:
-                hook = layer.register_forward_hook(self._output_hook, with_kwargs=True)
-                self.forwards_hooks.append(hook)
-            self._forwards_decorated = True
-
-    def undecorate_forwards(self):
-        for hook in self.forwards_hooks:
-            hook.remove()
-        self._forwards_decorated = False
-
-    def _hidden_hook(self, module, args, kwargs, output) -> None:
-        t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
-        if t is None:
-            return
-
-        out_tensor, hh = unpack_out_hh(output)
-        hh = recursive_detach_(hh)
-        return
-
-    def _output_hook(self, module, args, kwargs, output) -> None:
-        t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
-        if t is None:
-            return
-
-        layer_name = module.name
-        out_tensor, hh = unpack_out_hh(output)
-        list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
-        self._optim_counter += 1
-        if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
-            self._backward_at_t(t, self.backward_time_steps, layer_name)
-            output = recursive_detach_(output)
-        if self._optim_counter >= self.optim_time_steps:
-            self._make_optim_step()
-        return
-
-
 class SaveObjsCallback(nt.callbacks.BaseCallback):
     DEFAULT_PRIORITY = nt.callbacks.BaseCallback.DEFAULT_LOW_PRIORITY
 

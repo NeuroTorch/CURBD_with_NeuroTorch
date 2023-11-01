@@ -1,20 +1,17 @@
 import os
 from typing import Tuple, List
 
+import matplotlib as mpl
 import neurotorch as nt
 import numpy as np
 import torch
-import matplotlib as mpl
 from matplotlib import pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
+from neurotorch.visualisation.report import mix_report
 from neurotorch.visualisation.time_series_visualisation import (
     Visualise,
     VisualiseKMeans,
-    VisualisePCA,
     VisualiseUMAP,
 )
-from neurotorch.visualisation.report import mix_report
 
 from constants import MPL_RC_BIG_FONT_PARAMS, MPL_RC_SMALL_FONT_PARAMS
 from util import pvar_mean_std
@@ -456,4 +453,3 @@ def plot_simple_report(
         plt.close(fig)
 
     return viz_pred, viz_target
-

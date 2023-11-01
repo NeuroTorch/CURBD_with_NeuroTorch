@@ -45,8 +45,6 @@ class CURBD3RegionsDataset(Dataset):
         self.lead_time = lead_time
         self.bump_std = bump_std
         self.amp_in_wn = amp_in_wn
-
-        # self.n_time_steps = int((self.time_seconds + self.lead_time) / self.dt_data) + 1
         self.kwargs = kwargs
 
         self._is_simulated = False
